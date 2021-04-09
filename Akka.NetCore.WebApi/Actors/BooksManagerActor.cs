@@ -7,7 +7,6 @@ using Microsoft.Extensions.DependencyInjection;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Threading.Tasks;
 
 namespace Akka.NetCore.WebApi.Actors
 {
@@ -52,30 +51,22 @@ namespace Akka.NetCore.WebApi.Actors
 
         public BooksManagerActor()
         {
-            Receive<CreateBook>(command => AddBookHandler(command));
+            //Receive<CreateBook>(command => AddBookHandler(command));
 
-            Receive<GetBookById>(query => GetBookByIdHandler(query));
+            //Receive<GetBookById>(query => GetBookByIdHandler(query));
 
-            Receive<GetBooks>(query => GetBooksHandler(query));
-        }
-        
-        private void AddBookHandler(CreateBook command)
-        {
-            var newBook = new Book
-            {
-                Id = Guid.NewGuid(),
-                Title = command.Title,
-                Author = command.Author,
-                Cost = command.Cost,
-                InventoryAmount = command.InventoryAmount,
-            };
+            //Receive<GetBooks>(query => GetBooksHandler(query));
 
-            _books.Add(newBook.Id, newBook);
+            Receive<CreateBook>(command => AddBookToDbHandler(command));
+
+            Receive<GetBookById>(query => GetBookByIdFromDbHandler(query));
+
+            Receive<GetBooks>(query => GetBooksFromDbHandler(query));
         }
 
-        private async Task AddBookToDbHandler(CreateBook command)
+        private void AddBookToDbHandler(CreateBook command)
         {
-            using(IServiceScope serviceScope = Context.CreateScope())
+            using (IServiceScope serviceScope = Context.CreateScope())
             {
                 var bookDbContext = serviceScope.ServiceProvider.GetService<BookDbContext>();
                 var newBook = new Book
@@ -88,8 +79,50 @@ namespace Akka.NetCore.WebApi.Actors
                 };
 
                 bookDbContext.Books.Add(newBook);
-                await bookDbContext.SaveChangesAsync();
+                bookDbContext.SaveChanges();
             }
+        }
+
+        private void GetBooksFromDbHandler(GetBooks query)
+        {
+            using (IServiceScope serviceScope = Context.CreateScope())
+            {
+                var bookDbContext = serviceScope.ServiceProvider.GetService<BookDbContext>();
+                var books = bookDbContext.Books.ToList();
+                Sender.Tell(books.Select(x => GetBookDto(x)).ToList());
+            }
+        }
+
+        private void GetBookByIdFromDbHandler(GetBookById query)
+        {
+            using (IServiceScope serviceScope = Context.CreateScope())
+            {
+                var bookDbContext = serviceScope.ServiceProvider.GetService<BookDbContext>();
+                var book = bookDbContext.Books.Where(x => x.Id == query.Id).FirstOrDefault();
+
+                if (book is not null)
+                {
+                    Sender.Tell(GetBookDto(book));
+                }
+                else
+                {
+                    Sender.Tell(BookNotFound.Instance);
+                }
+            }
+        }
+
+        private void AddBookHandler(CreateBook command)
+        {
+            var newBook = new Book
+            {
+                Id = Guid.NewGuid(),
+                Title = command.Title,
+                Author = command.Author,
+                Cost = command.Cost,
+                InventoryAmount = command.InventoryAmount,
+            };
+
+            _books.Add(newBook.Id, newBook);
         }
 
         private void GetBookByIdHandler(GetBookById query)

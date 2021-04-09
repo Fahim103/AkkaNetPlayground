@@ -8,6 +8,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.OpenApi.Models;
+using System;
 
 namespace Akka.NetCore.WebApi
 {
@@ -54,7 +55,7 @@ namespace Akka.NetCore.WebApi
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
-        public void Configure(IApplicationBuilder app, IWebHostEnvironment env, IHostApplicationLifetime lifetime)
+        public void Configure(IApplicationBuilder app, IWebHostEnvironment env, IHostApplicationLifetime lifetime, IServiceProvider provider)
         {
             if (env.IsDevelopment())
             {
@@ -83,6 +84,41 @@ namespace Akka.NetCore.WebApi
             {
                 app.ApplicationServices.GetService<ActorSystem>().Terminate().Wait();
             });
+
+            var bookDbContext = provider.GetService<BookDbContext>();
+            AddDummyDataToInMemoryDatabase(bookDbContext);
+        }
+
+        private static void AddDummyDataToInMemoryDatabase(BookDbContext bookDbContext)
+        {
+            bookDbContext.Books.Add(new Domain.Book
+            {
+                Id = Guid.NewGuid(),
+                Title = "Book 1",
+                Author = "Author 1",
+                InventoryAmount = 12,
+                Cost = 2.99M
+            });
+
+            bookDbContext.Books.Add(new Domain.Book
+            {
+                Id = Guid.NewGuid(),
+                Title = "Book 2",
+                Author = "Author 2",
+                InventoryAmount = 2,
+                Cost = 4.99M
+            });
+
+            bookDbContext.Books.Add(new Domain.Book
+            {
+                Id = Guid.NewGuid(),
+                Title = "Book 3",
+                Author = "Author 3",
+                InventoryAmount = 10,
+                Cost = 7.99M
+            });
+
+            bookDbContext.SaveChangesAsync().Wait();
         }
     }
 }
